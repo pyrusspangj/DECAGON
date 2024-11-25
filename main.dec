@@ -1,0 +1,34 @@
+
+set unsorted [2, 5, 1, -10, 3, 7, 34728, -3]
+
+def INIT():
+	$unsorted[2]++
+	$unsorted[4], $unsorted[5] = $unsorted[5], $unsorted[4]
+	println("swapped $unsorted[4] and $unsorted[5]")
+	
+def bad_method():
+	set bad_variable 0/0
+	print("this will make error $bad_variable")
+
+def bubble_sort(greenlight, array):
+	if(!greenlight):
+		return null
+	
+	set sorted []
+	for element in $unsorted:
+		for i in range(0, $unsorted.length, 1):
+			if element == last:
+				first = last - 3
+			
+	return sort($array)
+
+area main:
+	set unsorted_copy $unsorted
+	set sorted bubble_sort(true, unsorted_copy)
+	println($sorted)
+	print("LET'S GO $DEC!")
+	goto secondary
+	bad_method()
+	
+area secondary:
+	autoprint("this area has saved the program, now program complete")
