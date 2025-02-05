@@ -20,15 +20,15 @@ def bubble_sort(greenlight, array):
 			if element == last:
 				first = last - 3
 			
-	return sort($array)
+	og(sort($array))
 
 area main:
 	set unsorted_copy $unsorted
-	set sorted bubble_sort(true, unsorted_copy)
-	println($sorted)
-	print("LET'S GO $DEC!")
+	bubble_sort(true, unsorted_copy)
+	println($unsorted_copy)
+	println("LET'S GO $DEC!")
 	goto secondary
 	bad_method()
 	
 area secondary:
-	autoprint("this area has saved the program, now program complete")
+	print("this area has saved the program, now program complete")

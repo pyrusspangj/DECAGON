@@ -16,10 +16,62 @@ static inline Token string_to_token(const char *str) {
 }
 
 static inline char peekc(FILE* fptr) {
-	char c = fgetc(fptr);
-	ungetc(c, fptr);
+	int c = fgetc(fptr);
+	if (c != EOF) {
+		ungetc(c, fptr);
+	}
+	return (char)c;
+}
+
+static inline char peekn(FILE* fptr, size_t n) {
+	char cstack[n];
+	int i;
+	char c = EOF;
+	
+	for (i=0; i<n; ++i) {
+		int temp = fgetc(fptr);
+		if (temp == EOF) {
+			break;
+		}
+		cstack[i] = (char)temp;
+	}
+	
+	c = cstack[n - 1];
+	
+	while (i > 0) {
+		--i;
+		ungetc(cstack[i], fptr);
+	}
+	
 	return c;
 }
+
+static inline char* fgetn(FILE* fptr, size_t n) {
+	char* fgotLUL = (char*)malloc(n + 1);
+	char c;
+	
+	for (size_t i=0; i<n; ++i) {
+		c = fgetc(fptr);
+		if (c == EOF) {
+			return fgotLUL;
+		} else {
+			fgotLUL[i] = c;
+		}
+	}
+	
+	return fgotLUL;
+}
+
+static inline void ungetn(const char* str, FILE* fptr, size_t n) {
+	if(strlen(str) < n) {
+		n = strlen(str);
+	}
+	
+	for(int i=n-1; i>=0; --i) {
+		ungetc(str[i], fptr);
+	}
+}
+
 
 
 
@@ -117,7 +169,11 @@ Lexeme* get_next_lexeme(FILE* fptr) {
 	
 	while((next = fgetc(fptr)) != EOF) {
 		if(isspace(next)) {
-			continue;
+			if(strlen(lexeme) != 0) {
+				return done(lex, lexeme, lextype);
+			} else {
+				continue;
+			}
 		}
 		
 		switch(lextype) {
@@ -126,37 +182,13 @@ Lexeme* get_next_lexeme(FILE* fptr) {
 				switch(next) {
 					// HANDLE COMPUTATION CASES
 					case '+':
-						update_lexeme(&lexeme, next);
-						lextype = COMPUTATION;
-						break;
 					case '-':
-						update_lexeme(&lexeme, next);
-						lextype = COMPUTATION;
-						break;
 					case '*':
-						update_lexeme(&lexeme, next);
-						lextype = COMPUTATION;
-						break;
 					case '/':
-						update_lexeme(&lexeme, next);
-						lextype = COMPUTATION;
-						break;
 					case '%':
-						update_lexeme(&lexeme, next);
-						lextype = COMPUTATION;
-						break;
 					case '=':
-						update_lexeme(&lexeme, next);
-						lextype = COMPUTATION;
-						break;
 					case '!':
-						update_lexeme(&lexeme, next);
-						lextype = COMPUTATION;
-						break;
 					case '>':
-						update_lexeme(&lexeme, next);
-						lextype = COMPUTATION;
-						break;
 					case '<':
 						update_lexeme(&lexeme, next);
 						lextype = COMPUTATION;
@@ -168,6 +200,48 @@ Lexeme* get_next_lexeme(FILE* fptr) {
 						lextype = IDENTIFIER;
 						break;
 						
+					case EMPHASIS_MODIFIER:
+						return done(lex, lexeme, lextype);
+						
+					case 'a':
+						char* placeholder;
+						short forward;
+						
+						forward = 2;
+						strcpy(placeholder, fgetn(fptr, forward));
+						if(strcmp(placeholder, "nd") == 0) {	// "and"
+							for(int i=0; i<forward; ++i)
+								update_lexeme(&lexeme, fgetn(1));
+							lextype = CONDITIONAL;
+							return done(lex, lexeme, lextype);
+						}
+						
+						forward = 3;
+						strcpy(placeholder, fgetn(fptr, forward));
+						if(strcmp(placeholder, "rea") == 0) {	// "area"
+							for(int i=0; i<forward; ++i)
+								update_lexeme(&lexeme, fgetn(1));
+							lextype = CONDITIONAL;
+							return done(lex, lexeme, lextype);
+						}
+						
+						break;
+						
+					case 'n':
+						char* placeholder;
+						short forward;
+						
+						forward = 2;
+						strcpy(placeholder, fgetn(fptr, forward));
+						if(strcmp(placeholder, "ot") == 0) {	// "not"
+							for(int i=0; i<forward; ++i)
+								update_lexeme(&lexeme, fgetn(1));
+							lextype = CONDITIONAL;
+							return done(lex, lexeme, lextype);
+						}
+						
+						break;
+						
 					default:
 						update_lexeme(&lexeme, next);
 						break;
@@ -177,25 +251,14 @@ Lexeme* get_next_lexeme(FILE* fptr) {
 			case RESERVED:
 			break;
 			case IDENTIFIER:
-			break;
+				update_lexeme(&lexeme, next);
+				break;
 			case COMPUTATION:
 				switch(next) {
 					case '+':
-						update_lexeme(&lexeme, next);
-						finished = true;
-						break;
 					case '-':
-						update_lexeme(&lexeme, next);
-						finished = true;
-						break;
 					case '*':
-						update_lexeme(&lexeme, next);
-						finished = true;
-						break;
 					case '/':
-						update_lexeme(&lexeme, next);
-						finished = true;
-						break;
 					case '=':
 						update_lexeme(&lexeme, next);
 						finished = true;
@@ -207,8 +270,7 @@ Lexeme* get_next_lexeme(FILE* fptr) {
 		}
 		
 		if(finished) {
-			set_lexeme(lex, lexeme);
-			assign_token_from_finished_lexeme(lex, lextype);
+			return done(lex, lexeme, lextype);
 		}
 	}
 }
@@ -267,6 +329,13 @@ void assign_token_from_finished_lexeme(Lexeme* lex, LexemeType lextype) {
 	
 	set_token(lex, string_to_token(get_lexeme(lex)));
 	
+}
+
+Lexeme* done(Lexeme* lex, const char* lexeme, LexType lextype) {
+	set_lexeme(lex, lexeme);
+	assign_token_from_finished_lexeme(lex, lextype);
+	
+	return lex;
 }
 
 

@@ -42,9 +42,15 @@ typedef enum {
 typedef enum {
 	ERR,
 	NONE,
+	
 	RESERVED,
+	
 	IDENTIFIER,
+	EMPHASIZER,
+	
 	COMPUTATION,
+	CONDITIONAL,
+	
 	CONSTLITERAL,
 	SINGLE_CHAR
 } LexemeType;
@@ -112,10 +118,9 @@ static const TokenMap token_map[] = {
 static inline Token string_to_token(const char* str);
 static inline char* token_to_string(Token t);
 static inline char peekc(FILE* fptr);
-
-typedef struct {
-	char* equivalent;
-} DecLexeme;
+static inline char peekn(FILE* fptr, size_t n);
+static inline char* fgetn(FILE* fptr, size_t n);
+static inline void ungetn(const char* str, FILE* fptr, size_t n);
 
 typedef struct {
 	Token token;
@@ -145,6 +150,7 @@ void set_token(Lexeme* lex, Token t);
 void set_lexeme(Lexeme* lex, char* str);
 
 void assign_token_from_finished_lexeme(Lexeme* lex, LexemeType lextype);
+Lexeme* done(Lexeme* lex, const char* lexeme, LexType lextype);
 
 
 
