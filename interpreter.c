@@ -1,5 +1,8 @@
 #include "interpreter.h"
 
+#include "Helper/filehelp.h"
+#include "Helper/stringhelp.h"
+
 LexemeType previous_lextype = NONE;
 
 // static inlines
@@ -15,62 +18,130 @@ static inline Token string_to_token(const char *str) {
 	return LITERAL;
 }
 
-static inline char peekc(FILE* fptr) {
-	int c = fgetc(fptr);
-	if (c != EOF) {
-		ungetc(c, fptr);
+
+static inline Lexeme* find_word(const char* str, FILE* fptr, Lexeme* lex, char** lexeme, LexemeType* lextype, LexemeType set_to) {
+	//printf("1. attempting to find %s\n", str);
+	
+	short forward = strlen(str) - 1;
+
+	char workable_str[forward + 1];  
+	for (int i = 0; i < forward; ++i) {
+		workable_str[i] = str[i + 1];
 	}
-	return (char)c;
+	workable_str[forward] = '\0';
+
+	//printf("3. attempting to find %s\n", workable_str);
+	
+	char* placeholder = fgetn(fptr, forward);
+	if (!placeholder) {
+		fprintf(stderr, "Error: fgetn() failed\n");
+		return NULL;
+	}
+
+	//printf("4. comparing %s to %s\n", placeholder, workable_str);
+	
+	if (strcmp(placeholder, workable_str) == 0) {
+		//printf("5. updating lexeme %s to %s\n", *lexeme, str);	
+
+		if (*lexeme) {
+			printf("len of lexeme: %d\n", (int)strlen(*lexeme));
+			free(*lexeme);
+			*lexeme = NULL;
+		}
+
+		*lexeme = (char*)malloc(strlen(str) + 1);
+		if (!*lexeme) {
+			fprintf(stderr, "Memory allocation failed!\n");
+			free(placeholder);
+			return NULL;
+		}
+
+		//printf("BRUHBRUH BRUH ALLOCATED YES!!!\n");
+
+		strcpy(*lexeme, str);
+
+		//printf("6. lexeme set to %s\n", *lexeme);
+
+		*lextype = set_to;
+
+		//printf("%s FOUND! RETURNING ITS LEXEME!\n", str);
+
+		free(placeholder);
+		return done(lex, *lexeme);
+	}
+	
+	ungetn(placeholder, fptr, forward);
+	
+	free(placeholder);
+	return NULL;
 }
 
-static inline char peekn(FILE* fptr, size_t n) {
-	char cstack[n];
-	int i;
-	char c = EOF;
+static inline LexemeType find_reserved_word(char next, FILE* fptr, Lexeme** lex, char** lexeme) {
 	
-	for (i=0; i<n; ++i) {
-		int temp = fgetc(fptr);
-		if (temp == EOF) {
+	Lexeme* temp = NULL;
+	LexemeType lextype = NONE;
+
+	switch(next) {
+	
+		case 'a':
+						
+			temp = find_word("and", fptr, *lex, &lexeme, &lextype, CONDITIONAL);
+			if(temp != NULL) {
+				*lex = temp;
+				return lextype;
+			}
+			
+			temp = find_word("area", fptr, *lex, &lexeme, &lextype, RESERVED);
+			if(temp != NULL) {
+				*lex = temp;
+				return lextype;
+			}
+			
 			break;
-		}
-		cstack[i] = (char)temp;
+					
+		case 'i':
+			
+			temp = find_word("if", fptr, *lex, &lexeme, &lextype, RESERVED);
+			if(temp != NULL) {
+				*lex = temp;
+				return lextype;
+			}
+			
+			break;
+			
+		case 'n':
+				
+			temp = find_word("not", fptr, lex, &lexeme, &lextype, RESERVED);
+			if(temp != NULL) {
+				*lex = temp;
+				return lextype;	
+			}
+			
+			break;
+					
+		case 's':
+						
+			temp = find_word("set", fptr, lex, &lexeme, &lextype, RESERVED);
+			if(temp != NULL) {
+				*lex = temp;
+				return lextype;
+			}
+						
+			break;
+			
+		default:
+				
+			break;
+	
 	}
 	
-	c = cstack[n - 1];
-	
-	while (i > 0) {
-		--i;
-		ungetc(cstack[i], fptr);
-	}
-	
-	return c;
+	return NONE;
+
 }
 
-static inline char* fgetn(FILE* fptr, size_t n) {
-	char* fgotLUL = (char*)malloc(n + 1);
-	char c;
-	
-	for (size_t i=0; i<n; ++i) {
-		c = fgetc(fptr);
-		if (c == EOF) {
-			return fgotLUL;
-		} else {
-			fgotLUL[i] = c;
-		}
-	}
-	
-	return fgotLUL;
-}
 
-static inline void ungetn(const char* str, FILE* fptr, size_t n) {
-	if(strlen(str) < n) {
-		n = strlen(str);
-	}
-	
-	for(int i=n-1; i>=0; --i) {
-		ungetc(str[i], fptr);
-	}
-}
+
+
 
 
 
@@ -89,6 +160,19 @@ size_t num_of_lexemes_thisline = 0;
 
 // get_next_lexeme helpers
 // MANAGES EASY ACCESS AND MODIFICATION OF LEXEMES ARRAY
+
+void assign_lexeme(char** str, const char* value) {
+	size_t len = strlen(value) + 1;
+	char* temp = realloc(*str, len);
+	if (!temp) {
+		perror("Memory allocation failed in assign_lexeme");
+		exit(1);
+	}
+
+	*str = temp;
+	strcpy(*str, value);
+}
+
 
 void update_lexeme(char** str, char next) {
 	size_t len = strlen((*str));
@@ -161,19 +245,45 @@ char* get_next_line(FILE* fptr) {
 
 Lexeme* get_next_lexeme(FILE* fptr) {
 	
-	Lexeme* lex = malloc(sizeof(Lexeme));
+	//printf("IN GET_NEXT_LEXEME about to init data\n");
+	
+	Lexeme* lex = (Lexeme*)malloc(sizeof(Lexeme));
+	//printf("made lex\n");
+	
 	LexemeType lextype = NONE;
-	char* lexeme;
+	//printf("made lextype\n");
+	
+	char* lexeme = new_lexeme();
+	//printf("made lexeme\n");
+	
 	char next;
 	bool finished = false;
 	
+	printf("IN GET_NEXT_LEXEME about to enter while loop\n");
+	
 	while((next = fgetc(fptr)) != EOF) {
+		printf("next!: '%c' (ASCII: %d)\n", next, next);
+		printf("lexeme: %s\n", lexeme);
+		
 		if(isspace(next)) {
-			if(strlen(lexeme) != 0) {
-				return done(lex, lexeme, lextype);
-			} else {
-				continue;
+			
+			if(lextype != NONE) {
+				return done(lex, lexeme);
 			}
+			
+			if(next == '\n') {
+				if(lextype == NONE) {
+					printf("is newline! returning\n");
+					update_lexeme(&lexeme, next);
+				} else {
+					ungetc(next, fptr);
+				}
+				
+				return done(lex, lexeme);
+			}
+			
+			printf("is space, continuing\n");
+			continue;
 		}
 		
 		switch(lextype) {
@@ -201,49 +311,17 @@ Lexeme* get_next_lexeme(FILE* fptr) {
 						break;
 						
 					case EMPHASIS_MODIFIER:
-						return done(lex, lexeme, lextype);
+						return done(lex, lexeme);
 						
-					case 'a':
-						char* placeholder;
-						short forward;
-						
-						forward = 2;
-						strcpy(placeholder, fgetn(fptr, forward));
-						if(strcmp(placeholder, "nd") == 0) {	// "and"
-							for(int i=0; i<forward; ++i)
-								update_lexeme(&lexeme, fgetn(1));
-							lextype = CONDITIONAL;
-							return done(lex, lexeme, lextype);
-						}
-						
-						forward = 3;
-						strcpy(placeholder, fgetn(fptr, forward));
-						if(strcmp(placeholder, "rea") == 0) {	// "area"
-							for(int i=0; i<forward; ++i)
-								update_lexeme(&lexeme, fgetn(1));
-							lextype = CONDITIONAL;
-							return done(lex, lexeme, lextype);
-						}
-						
-						break;
-						
-					case 'n':
-						char* placeholder;
-						short forward;
-						
-						forward = 2;
-						strcpy(placeholder, fgetn(fptr, forward));
-						if(strcmp(placeholder, "ot") == 0) {	// "not"
-							for(int i=0; i<forward; ++i)
-								update_lexeme(&lexeme, fgetn(1));
-							lextype = CONDITIONAL;
-							return done(lex, lexeme, lextype);
-						}
-						
-						break;
-						
+					
 					default:
-						update_lexeme(&lexeme, next);
+						
+						lextype = find_reserved_word(next, fptr, lex, lexeme);
+						
+						if(lextype != NONE) {
+							return lex;
+						}
+						
 						break;
 				}
 				break;
@@ -261,20 +339,52 @@ Lexeme* get_next_lexeme(FILE* fptr) {
 					case '/':
 					case '=':
 						update_lexeme(&lexeme, next);
-						finished = true;
-						break;
+						
+					default:
+						return done(lex, lexeme);
 				}
 				break;
 			case CONSTLITERAL:
 				break;
+			
+			default:
+				return done(lex, lexeme);
 		}
 		
-		if(finished) {
-			return done(lex, lexeme, lextype);
-		}
 	}
+	
+	return done(lex, "DONE");
+	
 }
 
+
+
+Lexeme** get_all_lexemes(FILE* fptr) {
+    printf("Starting get_all_lexemes()\n");
+
+    Lexeme** all_lexemes = malloc(sizeof(Lexeme*));
+    if (!all_lexemes) {
+        perror("Memory allocation failed for all_lexemes");
+        exit(1);
+    }
+
+    Lexeme* next_lexeme;
+    do {
+        printf("Fetching next lexeme...\n");
+        next_lexeme = get_next_lexeme(fptr);
+        
+        if (!next_lexeme) {
+            printf("Error: get_next_lexeme() returned NULL!\n");
+            break;
+        }
+
+        printf("Lexeme received: %s\n", get_lexeme(next_lexeme));
+        add_lexeme(next_lexeme, &all_lexemes);
+    } while (get_token(next_lexeme) != DONE);
+
+    printf("Finished lexeme processing.\n");
+    return all_lexemes;
+}
 
 
 
@@ -322,18 +432,23 @@ void set_token(Lexeme* lex, Token t) {
 }
 
 void set_lexeme(Lexeme* lex, char* str) {
-	strcpy(lex->lexeme, str);
+    lex->lexeme = malloc(strlen(str) + 1);
+    if (!lex->lexeme) {
+        perror("Memory allocation failed for lexeme");
+        exit(1);
+    }
+    strcpy(lex->lexeme, str);
 }
 
-void assign_token_from_finished_lexeme(Lexeme* lex, LexemeType lextype) {
+void assign_token_from_finished_lexeme(Lexeme* lex) {
 	
 	set_token(lex, string_to_token(get_lexeme(lex)));
 	
 }
 
-Lexeme* done(Lexeme* lex, const char* lexeme, LexType lextype) {
+Lexeme* done(Lexeme* lex, const char* lexeme) {
 	set_lexeme(lex, lexeme);
-	assign_token_from_finished_lexeme(lex, lextype);
+	assign_token_from_finished_lexeme(lex);
 	
 	return lex;
 }

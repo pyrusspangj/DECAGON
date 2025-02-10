@@ -4,6 +4,8 @@
 #include "interpreter.h"
 
 void decagon(FILE* decf) {
+		
+	Lexeme** program_lexemes = get_all_lexemes(decf);
 	
 }
 
@@ -14,13 +16,15 @@ int main(int argc, char* argv[]) {
 	}
 	
 	FILE* decagonfile;
-	fopen(argv[1], "r");
+	decagonfile = fopen(argv[1], "r");
 	
 	if(decagonfile == NULL) {
 		printf("Filename argument \"%s\" is invalid or could not be read.\n", argv[1]);
 	}
 	
-	free(decagonfile);
+	decagon(decagonfile);
+	
+	fclose(decagonfile);
 	
 	return 0;
 }

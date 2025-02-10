@@ -36,12 +36,13 @@ typedef enum {
 	COLON, DOT, COMMA,
 	OPENPAREN, CLOSEPAREN, OPENBRACKET, CLOSEBRACKET, OPENCURLY, CLOSECURLY,
 	
-	DONE, ERROR,
+	DONE, ERROR, UNKNOWN,
 } Token;
 
 typedef enum {
 	ERR,
 	NONE,
+	END,
 	
 	RESERVED,
 	
@@ -63,6 +64,8 @@ typedef struct {
 } TokenMap;
 
 static const TokenMap token_map[] = {
+	{"DONE", DONE},
+	
 	{"\t", INDENT},
 	{"\n", NEWLINE},
 	{"set", SET},
@@ -117,19 +120,19 @@ static const TokenMap token_map[] = {
 
 static inline Token string_to_token(const char* str);
 static inline char* token_to_string(Token t);
-static inline char peekc(FILE* fptr);
-static inline char peekn(FILE* fptr, size_t n);
-static inline char* fgetn(FILE* fptr, size_t n);
-static inline void ungetn(const char* str, FILE* fptr, size_t n);
 
 typedef struct {
 	Token token;
 	char* lexeme;
 } Lexeme;
 
+static inline Lexeme* find_word(const char* str, FILE* fptr, Lexeme* lex, char** lexeme, LexemeType* lextype, LexemeType set_to);
+static inline LexemeType find_reserved_word(char next, FILE* fptr, Lexeme** lex, char** lexeme);
+
 
 // updaters and operations
 
+void assign_lexeme(char** str, const char* value);
 void update_lexeme(char** str, char c);
 void insert_lexeme(Lexeme* lex, Lexeme*** lexemes, size_t len, size_t index);
 void add_lexeme(Lexeme* lex, Lexeme*** lexemes);
@@ -138,6 +141,7 @@ void add_lexeme(Lexeme* lex, Lexeme*** lexemes);
 // getters
 char* get_next_line(FILE* fptr);
 Lexeme* get_next_lexeme(FILE* fptr);
+Lexeme** get_all_lexemes(FILE* fptr);
 
 Token get_token(Lexeme* lex);
 char* get_lexeme(Lexeme* lex);
@@ -149,8 +153,8 @@ void build_lexeme(Lexeme* lex, Token t, char* str);
 void set_token(Lexeme* lex, Token t);
 void set_lexeme(Lexeme* lex, char* str);
 
-void assign_token_from_finished_lexeme(Lexeme* lex, LexemeType lextype);
-Lexeme* done(Lexeme* lex, const char* lexeme, LexType lextype);
+void assign_token_from_finished_lexeme(Lexeme* lex);
+Lexeme* done(Lexeme* lex, const char* lexeme);
 
 
 
